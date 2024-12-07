@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trending Film</title>
+
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Navbar -->
+    <header>
+        <a data-aos="fade-down" href="#" class="logo">Trending Film</a>
+
+        <ul class="navbar">
+            <li><a data-aos="fade-down" href="#chart">Chart</a></li>
+            <li><a data-aos="fade-down" href="#trailer">Trailer</a></li>
+            <li><a data-aos="fade-down" href="#film">Films</a></li>
+        </ul>
+    </header>
+
+    <!-- chart  Section-->
+    <section class="chart" id="chart">
+        <div data-aos="fade-right" class="chart-text">
+            <h1>The Top 10</h1>
+            <h2>Trending Genres</h2>
+            <a href="#film" class="btn">View films</a>
+        </div>
+
+        <div data-aos="fade-left" class="chart-img">
+            <canvas id="myChart">
+                <!-- inject in js -->
+            </canvas>
+        </div>
+    </section>
+
+    <!-- trailer -->
+    <div data-aos="fade-up" class="heading">
+        <h2>Trailer of the Trending Films</h2>
+    </div>
+
+    <section class="trailer" id="trailer">
+        <!-- inject from js -->
+    </section>
+
+    <!-- film -->
+    <section class="film" id="film">
+        <div class="heading" data-aos="fade-down">
+            <h2>Trending Films</h2>
+        </div>
+
+        <div id="film-container" class="film-container">
+            <!-- inject from js -->
+
+            <!-- <div class="box">
+                <div class="box-img">
+                    <img src="https://image.tmdb.org/t/p/w500/tkRDTu9hyWgaBSSzfkYDCZYd1kV.jpg" alt="">
+                </div>
+                <h2>title</h2>
+                <span>release date</span>
+            </div> -->
+        </div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+    <script>
+        const apiKey = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhNDgyZjhmN2RkY2JhOTJmNmEyZTY5YWViZmIzYThhYyIsIm5iZiI6MTczMjk3NDk3OS43OTMsInN1YiI6IjY3NGIxOTgzMWU2MWU5MjdkZTE4Y2NlMCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.LNNSoSiBSbdR6mURXoVGgR7iHPPpHwmxPgC5us7Rb5A"
+        const options = {
+            method: 'GET',
+            headers: {
+                accept: 'application/json',
+                Authorization: apiKey
+            }
+        };
+    </script>
+
+    <script>
+        function buildChart(data) {
+            const ctx = document.getElementById('myChart');
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map((d) => d.name),
+                    datasets: [{
+                        label: 'Genre Count',
+                        data: data.map((d) => d.count),
+                        backgroundColor: '#ffb41191',
+                        borderColor: '#ffb411',
+                        borderWidth: 2
+                    }],
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        async function fetchAndCountGenres() {
+            try {
+                // Fetch genres
+                const genresResponse = await fetch('https://api.themoviedb.org/3/genre/movie/list?language=en-US', options);
+                const genresData = await genresResponse.json();
+
+                // Initialize an empty array for movies
+                let allMovies = [];
+                let page = 1;
+
+                // Fetch trending movies from all pages
+                while (page <= 20) {
+                    const trendingResponse = await fetch(`https://api.themoviedb.org/3/trending/movie/day?language=en-US&page=${page}`, options);
+                    const trendingData = await trendingResponse.json();
+
+                    // If no results, break the loop
+                    if (!trendingData.results || trendingData.results.length === 0) {
+                        break;
+                    }
+
+                    // Add the results from this page to the allMovies array
+                    allMovies = allMovies.concat(trendingData.results);
+
+                    // Increment the page number to fetch the next page
+                    page++;
+                }
+
+                // Initialize genres array
+                const genresArray = genresData.genres.map(genre => ({
+                    id: genre.id,
+                    name: genre.name,
+                    count: 0
+                }));
+
+                // Count the genres in the fetched movies
+                allMovies.forEach(movie => {
+                    movie.genre_ids.forEach(genreId => {
+                        const genre = genresArray.find(g => g.id === genreId);
+                        if (genre) {
+                            genre.count += 1;
+                        }
+                    });
+                });
+
+                // Sort genres by count and take top 10
+                const topGenres = genresArray
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 10);
+
+                // Build the chart with top genres
+                buildChart(topGenres);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        fetchAndCountGenres();
+
+        async function getSixMoviesWithTrailers() {
+            try {
+                let currentPage = 1;
+                const moviesWithTrailers = [];
+
+                while (moviesWithTrailers.length < 6) {
+                    // Fetch trending movies
+                    const trendingResponse = await fetch(`https://api.themoviedb.org/3/trending/movie/day?language=en-US&page=${currentPage}`, options);
+                    const trendingData = await trendingResponse.json();
+
+                    // For each movie, fetch its video details
+                    for (const movie of trendingData.results) {
+                        if (moviesWithTrailers.length >= 6) break; // Stop if we already have 6 movies
+
+                        const videoResponse = await fetch(`https://api.themoviedb.org/3/movie/${movie.id}/videos?language=en-US`, options);
+                        const videoData = await videoResponse.json();
+
+                        // Find the trailer (if it exists)
+                        const trailer = videoData.results.find(video => video.type === 'Trailer' && video.site === 'YouTube');
+
+                        // If trailer exists, add movie to the list
+                        if (trailer) {
+                            moviesWithTrailers.push({
+                                title: movie.title,  // Movie title
+                                trailerUrl: `${trailer.key}`,  // Trailer URL
+                            });
+                        }
+                    }
+
+                    currentPage++;
+                }
+
+                renderMovieTrailers(moviesWithTrailers);
+
+            } catch (error) {
+                console.error('Error fetching movie data:', error);
+            }
+        }
+
+        function renderMovieTrailers(movies) {
+
+            const trailerContainer = document.getElementById('trailer'); // Parent element to append movie trailers
+            movies.forEach(movie => {
+                // Create the movie trailer div
+                const trailerDiv = document.createElement('div');
+                trailerDiv.setAttribute("data-aos", "fade-up");
+                trailerDiv.classList.add('trailer-video');
+
+                // Create the iframe element for YouTube trailer with the updated embed format
+                const iframeElement = document.createElement('iframe');
+                iframeElement.src = `https://www.youtube.com/embed/${movie.trailerUrl}`; // Embed YouTube trailer URL
+                iframeElement.height = "400px"; // Set the title of the iframe
+                iframeElement.title = `${movie.title}`; // Set the title of the iframe
+
+                // Create the title element
+                const titleElement = document.createElement('h2');
+                titleElement.textContent = movie.title; // Set the movie title
+
+                // Append iframe and title to the trailer div
+                trailerDiv.appendChild(iframeElement);
+                trailerDiv.appendChild(titleElement);
+
+                // Append the trailer div to the trailer container
+                trailerContainer.appendChild(trailerDiv);
+            });
+        }
+
+        getSixMoviesWithTrailers();
+
+        async function fetchTrendingMovies() {
+            try {
+                const trendingResponse = await fetch(`https://api.themoviedb.org/3/trending/movie/day?language=en-US`, options);
+                const trendingData = await trendingResponse.json();
+
+                renderMovies(trendingData.results);
+            } catch (error) {
+                console.error('Error fetching movie data:', error);
+            }
+        }
+
+        function renderMovies(movies) {
+            const filmContainer = document.getElementById('film-container');
+
+            movies.forEach(movie => {
+                // Create the movie component structure
+                const movieBox = document.createElement('div');
+                movieBox.setAttribute("data-aos", "fade-down");
+                movieBox.classList.add('box');
+
+                // Create the image container and image
+                const boxImg = document.createElement('div');
+                boxImg.classList.add('box-img');
+                const movieImg = document.createElement('img');
+                movieImg.src = `https://image.tmdb.org/t/p/w500${movie.backdrop_path}`; // Fetch the movie poster
+                movieImg.alt = movie.title;
+
+                // Append the image to the box-img container
+                boxImg.appendChild(movieImg);
+
+                // Create the title and release date elements
+                const movieTitle = document.createElement('h2');
+                movieTitle.textContent = movie.title;
+
+                const releaseDate = document.createElement('span');
+                releaseDate.textContent = movie.release_date;
+
+                // Append the components to the movie box
+                movieBox.appendChild(boxImg);
+                movieBox.appendChild(movieTitle);
+                movieBox.appendChild(releaseDate);
+
+                // Append the movie box to the film container
+                filmContainer.appendChild(movieBox);
+            });
+        }
+        
+        fetchTrendingMovies();
+
+        AOS.init()
+    </script>
+</body>
+
+</html>
